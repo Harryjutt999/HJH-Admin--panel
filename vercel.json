@@ -1,23 +1,11 @@
 {
   "version": 2,
   "builds": [
-    {
-      "src": "api/keys.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "public/**/*",
-      "use": "@vercel/static"
-    }
+    { "src": "public/*", "use": "@vercel/static" },
+    { "src": "api/keys.js", "use": "@vercel/node" }
   ],
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/keys.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
-    }
+    { "src": "/api/(.*)", "dest": "api/keys.js" },
+    { "src": "/(.*)", "dest": "public/$1" }
   ]
 }
