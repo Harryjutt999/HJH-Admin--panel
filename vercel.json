@@ -1,13 +1,5 @@
 {
-  "version": 2,
-  "public": "public",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/keys" }
-  ],
-  "functions": {
-    "api/keys.js": {
-      "memory": 128,
-      "maxDuration": 10
-    }
-  }
+    { "source": "/api/:path*", "destination": "/api/keys" }
+  ]
 }
