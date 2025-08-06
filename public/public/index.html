@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HJH Tools - Admin Panel</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background-color: #f8f9fa; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e9ecef; padding-bottom: 20px; margin-bottom: 30px; }
+        .header h1 { color: #007bff; margin: 0; }
+        .header a { color: #dc3545; text-decoration: none; font-weight: bold; cursor: pointer; }
+        .actions { display: flex; gap: 15px; margin-bottom: 30px; flex-wrap: wrap; }
+        .btn { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; transition: all 0.2s; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-success { background-color: #28a745; color: white; }
+        table { width: 100%; border-collapse: collapse; display: block; overflow-x: auto; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #dee2e6; white-space: nowrap; }
+        th { background-color: #f1f3f5; }
+        .status { padding: 5px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; color: white; }
+        .status.available { background-color: #28a745; }
+        .status.used { background-color: #ffc107; }
+        .status.blocked { background-color: #dc3545; }
+        #new-key-container { background: #e9f7ef; border: 1px solid #28a745; padding: 15px; margin-top: 20px; border-radius: 6px; display: none; word-wrap: break-word; }
+        #new-key { font-weight: bold; font-size: 18px; color: #155724; user-select: all; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>HJH Tools Admin Panel</h1>
+            <a onclick="logout()">Logout</a>
+        </div>
+        <div class="actions">
+            <button class="btn btn-primary" onclick="generateKey()">Generate New Key</button>
+            <button class="btn btn-success" onclick="copyAvailableKeys()">Copy Available Keys</button>
+        </div>
+        <div id="new-key-container">New Key Generated: <span id="new-key"></span></div>
+        <h2>Access Keys Management</h2>
+        <table>
+            <thead>
+                <tr><th>Access Key</th><th>Status</th><th>Activated On</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="keys-table"></tbody>
+        </table>
+    </div>
+    <script>
+        const API_URL = '/api/keys';
+        const password = sessionStorage.getItem('admin_password');
+
+        if (!password) {
+            window.location.href = '/login.html';
+        }
+
+        async function apiFetch(options = {}) {
+            const defaultOptions = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${password}`
+                }
+            };
+            const response = await fetch(API_URL, { ...defaultOptions, ...options });
+            if (response.status === 401) {
+                alert('Ghalat Password! Wapas login karein.');
+                sessionStorage.removeItem('admin_password');
+                window.location.href = '/login.html';
+                return null;
+            }
+            return response.json();
+        }
+
+        async function loadKeys() {
+            const keys = await apiFetch();
+            if (!keys) return;
+            const tableBody = document.getElementById('keys-table');
+            tableBody.innerHTML = '';
+            if (keys.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">Abhi koi key nahi banayi gayi.</td></tr>';
+                return;
+            }
+            keys.sort((a, b) => new Date(b.created_on) - new Date(a.created_on));
+            keys.forEach(keyData => {
+                const tr = document.createElement('tr');
+                const statusClass = keyData.status.toLowerCase();
+                const activationDate = keyData.activated_on ? new Date(keyData.activated_on).toLocaleString() : 'N/A';
+                tr.innerHTML = `
+                    <td><b>${keyData.key}</b></td>
+                    <td><span class="status ${statusClass}">${keyData.status}</span></td>
+                    <td>${activationDate}</td>
+                    <td>
+                        <button title="Copy Key" onclick="copyToClipboard('${keyData.key}')">📋</button>
+                        ${keyData.status !== 'Blocked' ? `<button title="Block Key" onclick="blockKey('${keyData.key}')">🚫</button>` : ''}
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        async function generateKey() {
+            const result = await apiFetch({
+                method: 'POST',
+                body: JSON.stringify({ action: 'generate' })
+            });
+            if (result && result.success) {
+                document.getElementById('new-key').innerText = result.key;
+                document.getElementById('new-key-container').style.display = 'block';
+                loadKeys();
+            } else if(result) {
+                alert('Error: ' + result.message);
+            }
+        }
+
+        async function blockKey(key) {
+            if (!confirm(`Kya aap waqai is key ko block karna chahte hain: ${key}?`)) return;
+            const result = await apiFetch({
+                method: 'POST',
+                body: JSON.stringify({ action: 'block', key: key })
+            });
+            if (result && result.success) {
+                alert('Key successfully blocked!');
+                loadKeys();
+            } else if(result) {
+                alert('Error: ' + result.message);
+            }
+        }
+        
+        async function copyAvailableKeys() {
+            const keys = await apiFetch();
+            if (!keys) return;
+            const availableKeys = keys.filter(k => k.status === 'Available').map(k => k.key).join('\n');
+            if(availableKeys) {
+                copyToClipboard(availableKeys, true);
+            } else {
+                alert('Koi bhi key available nahi hai.');
+            }
+        }
+
+        function copyToClipboard(text, isList = false) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert(isList ? 'Saari available keys copy ho gayi hain!' : 'Key copied to clipboard!');
+            });
+        }
+
+        function logout() {
+            sessionStorage.removeItem('admin_password');
+            window.location.href = '/login.html';
+        }
+
+        document.addEventListener('DOMContentLoaded', loadKeys);
+    </script>
+</body>
+  </html>
+  
