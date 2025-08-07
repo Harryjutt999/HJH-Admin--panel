@@ -1,0 +1,10 @@
+[build]
+  command = "echo 'No build command needed'"
+  publish = "public"
+  functions = "api"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/keys/:splat"
+  status = 200
+  
